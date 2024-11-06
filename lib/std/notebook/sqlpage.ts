@@ -399,14 +399,16 @@ export class TypicalSqlPageNotebook
               '- Total Pages: ' || ${$("total_pages")} as contents_md;`;
       },
 
-      renderSimpleMarkdown: () => {
+      renderSimpleMarkdown: (...extraQueryParams: string[]) => {
         return this.SQL`
           SELECT 'text' AS component,
               (SELECT CASE WHEN ${
           $("current_page")
         } > 1 THEN '[Previous](?limit=' || ${$("limit")} || '&offset=' || (${
           $("offset")
-        } - ${$("limit")}) || ')' ELSE '' END) || ' ' ||
+        } - ${$("limit")}) ||  ${
+          extraQueryParams.map((qp) => `'&${n(qp)}=' || ${$(qp)} ||`)
+        }   ')' ELSE '' END) || ' ' ||
               '(Page ' || ${$("current_page")} || ' of ' || ${
           $("total_pages")
         } || ") " ||
@@ -414,7 +416,9 @@ export class TypicalSqlPageNotebook
           $("total_pages")
         } THEN '[Next](?limit=' || ${$("limit")} || '&offset=' || (${
           $("offset")
-        } + ${$("limit")}) || ')' ELSE '' END)
+        } + ${$("limit")}) ||   ${
+          extraQueryParams.map((qp) => `'&${n(qp)}=' || ${$(qp)} ||`)
+        }  ')' ELSE '' END)
               AS contents_md;`;
       },
     };
@@ -431,7 +435,7 @@ export class TypicalSqlPageNotebook
     return this.SQL`
       INSERT INTO sqlpage_aide_navigation (namespace, parent_path, sibling_order, path, url, caption, abbreviated_caption, title, description,elaboration)
       VALUES
-          ${nav.map(n => `(${[n.namespace, n.parentPath, n.siblingOrder ?? 1, n.path, n.url, n.caption, n.abbreviatedCaption, n.title, n.description,n.elaboration].map(v => literal(v)).join(', ')})`).join(",\n    ")}
+          ${nav.map(n => `(${[n.namespace, n.parentPath, n.siblingOrder ?? 1, n.path, n.url, n.caption, n.abbreviatedCaption, n.title, n.description, n.elaboration].map(v => literal(v)).join(', ')})`).join(",\n    ")}
       ON CONFLICT (namespace, parent_path, path)
       DO UPDATE SET title = EXCLUDED.title, abbreviated_caption = EXCLUDED.abbreviated_caption, description = EXCLUDED.description, url = EXCLUDED.url, sibling_order = EXCLUDED.sibling_order;`
   }
@@ -647,8 +651,8 @@ export class TypicalSqlPageNotebook
                 ...spfr,
                 // deno-fmt-ignore
                 content: ws.unindentWhitespace(`
-              ${shell.shellStmts !== "do-not-include" ? shell.shellStmts(spfr): "-- not including shell"}
-              ${shell.breadcrumbsFromNavStmts !== "no" ? shell.breadcrumbsFromNavStmts(spfr): "-- not including breadcrumbs from sqlpage_aide_navigation"}
+              ${shell.shellStmts !== "do-not-include" ? shell.shellStmts(spfr) : "-- not including shell"}
+              ${shell.breadcrumbsFromNavStmts !== "no" ? shell.breadcrumbsFromNavStmts(spfr) : "-- not including breadcrumbs from sqlpage_aide_navigation"}
               ${shell.pageTitleFromNavStmts !== "no" ? shell.pageTitleFromNavStmts(spfr) : "-- not including page title from sqlpage_aide_navigation"}
 
               ${spfr.content}

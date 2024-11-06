@@ -329,7 +329,7 @@ Deno.test("sqlite_html", async (t) => {
     const stdout = result.stdoutJson;
     const value = stdout[0][Object.keys(stdout[0])[0]];
     assertEquals(value, `<b class="x">world!</b>`);
-  })
+  });
 
   await t.step("html_attribute_get", async () => {
     const result =
@@ -343,7 +343,7 @@ Deno.test("sqlite_html", async (t) => {
     const stdout = result.stdoutJson;
     const value = stdout[0][Object.keys(stdout[0])[0]];
     assertEquals(value, `./about`);
-  })
+  });
 
   await t.step("html_attribute_get", async () => {
     const result =
@@ -357,8 +357,8 @@ Deno.test("sqlite_html", async (t) => {
     const stdout = result.stdoutJson;
     const value = stdout[0][Object.keys(stdout[0])[0]];
     assertEquals(value, 3);
-  })
-})
+  });
+});
 
 Deno.test("sqlite_url", async (t) => {
   await t.step("http_get", async () => {
@@ -373,5 +373,38 @@ Deno.test("sqlite_url", async (t) => {
     const stdout = result.stdoutJson;
     const response = stdout[0];
     assertEquals(response.response_status, `200 OK`);
-  })
-})
+  });
+});
+
+Deno.test("sqlite_lines", async (t) => {
+  const filePath = "out.txt";
+  const fileContent = "Line 1\nLine 2\nLine 3";
+
+  await Deno.writeTextFile(filePath, fileContent);
+
+  await t.step("lines_read", async () => {
+    const result =
+      await $`surveilr shell --cmd "select * from lines_read(${filePath});"`
+        .stdout("piped");
+
+    assertEquals(
+      result.code,
+      0,
+      "❌ Error: Failed to execute surveilr lines_read function.",
+    );
+
+    const stdout = result.stdoutJson;
+    const response = stdout;
+
+    const expectedLines = fileContent.split("\n");
+    for (const [index, line] of expectedLines.entries()) {
+      assertEquals(
+        response[index]["line"],
+        line,
+        `❌ Error: Line ${index + 1} does not match.`,
+      );
+    }
+  });
+
+  await Deno.remove(filePath);
+});

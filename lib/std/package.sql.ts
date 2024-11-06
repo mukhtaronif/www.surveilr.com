@@ -12,7 +12,7 @@ export async function SQL() {
     new sh.ShellSqlPages(),
     new c.ConsoleSqlPages(),
     new ur.UniformResourceSqlPages(),
-    new orch.OrchestrationSqlPages(),
+    new orch.OrchestrationSqlPages()
   );
 }
 // this will be used by any callers who want to serve it as a CLI with SDTOUT

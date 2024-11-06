@@ -6,7 +6,7 @@ import {
 } from "../study-specific-stateless/generate-cgm-combined-sql.ts";
 
 export class uvadclp1SqlPages extends spn.TypicalSqlPageNotebook {
-  detrendedViewDDL() {
+  dclp1ViewDDL() {
     const dbFilePath = "./resource-surveillance.sqlite.db";
     const sqlStatements = createUVACombinedCGMViewSQL(dbFilePath);
     return this.SQL`

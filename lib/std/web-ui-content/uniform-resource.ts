@@ -34,7 +34,196 @@ export class UniformResourceSqlPages extends spn.TypicalSqlPageNotebook {
         LEFT JOIN ur_ingest_session_fs_path p ON ur.ingest_fs_path_id = p.ur_ingest_session_fs_path_id
         LEFT JOIN ur_ingest_session_fs_path_entry pe ON ur.uniform_resource_id = pe.uniform_resource_id
         WHERE ur.ingest_fs_path_id IS NOT NULL;
+
+        DROP VIEW IF EXISTS uniform_resource_imap;
+        CREATE VIEW uniform_resource_imap AS
+        SELECT ur.uniform_resource_id,
+              iac.ur_ingest_session_imap_account_id,
+              iac.email,
+              iac.host,
+              iacm.subject,
+              iacm."from",
+              iacm.message,
+              iacm.date,
+              iaf.ur_ingest_session_imap_acct_folder_id,
+              iaf.ingest_account_id,
+              iaf.folder_name,
+              ur.size_bytes,
+              ur.nature
+        FROM uniform_resource ur
+        LEFT JOIN ur_ingest_session_imap_acct_folder_message iacm ON iacm.ur_ingest_session_imap_acct_folder_message_id = ur.ingest_session_imap_acct_folder_message
+        LEFT JOIN ur_ingest_session_imap_acct_folder iaf ON iacm.ingest_imap_acct_folder_id = iaf.ur_ingest_session_imap_acct_folder_id
+        LEFT JOIN ur_ingest_session_imap_account iac ON iac.ur_ingest_session_imap_account_id = iaf.ingest_account_id
+        WHERE ur.ingest_session_imap_acct_folder_message IS NOT NULL;
     `;
+  }
+
+  fsContentIngestSessionFilesStatsViewDDL() {
+    // deno-fmt-ignore
+    return this.viewDefn("ur_ingest_session_files_stats")/* sql */`
+      WITH Summary AS (
+          SELECT
+              device.device_id AS device_id,
+              ur_ingest_session.ur_ingest_session_id AS ingest_session_id,
+              ur_ingest_session.ingest_started_at AS ingest_session_started_at,
+              ur_ingest_session.ingest_finished_at AS ingest_session_finished_at,
+              COALESCE(ur_ingest_session_fs_path_entry.file_extn, '') AS file_extension,
+              ur_ingest_session_fs_path.ur_ingest_session_fs_path_id as ingest_session_fs_path_id,
+              ur_ingest_session_fs_path.root_path AS ingest_session_root_fs_path,
+              COUNT(ur_ingest_session_fs_path_entry.uniform_resource_id) AS total_file_count,
+              SUM(CASE WHEN uniform_resource.content IS NOT NULL THEN 1 ELSE 0 END) AS file_count_with_content,
+              SUM(CASE WHEN uniform_resource.frontmatter IS NOT NULL THEN 1 ELSE 0 END) AS file_count_with_frontmatter,
+              MIN(uniform_resource.size_bytes) AS min_file_size_bytes,
+              AVG(uniform_resource.size_bytes) AS average_file_size_bytes,
+              MAX(uniform_resource.size_bytes) AS max_file_size_bytes,
+              MIN(uniform_resource.last_modified_at) AS oldest_file_last_modified_datetime,
+              MAX(uniform_resource.last_modified_at) AS youngest_file_last_modified_datetime
+          FROM
+              ur_ingest_session
+          JOIN
+              device ON ur_ingest_session.device_id = device.device_id
+          LEFT JOIN
+              ur_ingest_session_fs_path ON ur_ingest_session.ur_ingest_session_id = ur_ingest_session_fs_path.ingest_session_id
+          LEFT JOIN
+              ur_ingest_session_fs_path_entry ON ur_ingest_session_fs_path.ur_ingest_session_fs_path_id = ur_ingest_session_fs_path_entry.ingest_fs_path_id
+          LEFT JOIN
+              uniform_resource ON ur_ingest_session_fs_path_entry.uniform_resource_id = uniform_resource.uniform_resource_id
+          GROUP BY
+              device.device_id,
+              ur_ingest_session.ur_ingest_session_id,
+              ur_ingest_session.ingest_started_at,
+              ur_ingest_session.ingest_finished_at,
+              ur_ingest_session_fs_path_entry.file_extn,
+              ur_ingest_session_fs_path.root_path
+      )
+      SELECT
+          device_id,
+          ingest_session_id,
+          ingest_session_started_at,
+          ingest_session_finished_at,
+          file_extension,
+          ingest_session_fs_path_id,
+          ingest_session_root_fs_path,
+          total_file_count,
+          file_count_with_content,
+          file_count_with_frontmatter,
+          min_file_size_bytes,
+          CAST(ROUND(average_file_size_bytes) AS INTEGER) AS average_file_size_bytes,
+          max_file_size_bytes,
+          oldest_file_last_modified_datetime,
+          youngest_file_last_modified_datetime
+      FROM
+          Summary
+      ORDER BY
+          device_id,
+          ingest_session_finished_at,
+          file_extension;`;
+  }
+
+  fsContentIngestSessionFilesStatsLatestViewDDL() {
+    // deno-fmt-ignore
+    return this.viewDefn("ur_ingest_session_files_stats_latest")/* sql */`
+      SELECT iss.*
+        FROM ur_ingest_session_files_stats AS iss
+        JOIN (  SELECT ur_ingest_session.ur_ingest_session_id AS latest_session_id
+                  FROM ur_ingest_session
+              ORDER BY ur_ingest_session.ingest_finished_at DESC
+                 LIMIT 1) AS latest
+          ON iss.ingest_session_id = latest.latest_session_id;`;
+  }
+
+  urIngestSessionTasksStatsViewDDL() {
+    // deno-fmt-ignore
+    return this.viewDefn("ur_ingest_session_tasks_stats")/* sql */`
+        WITH Summary AS (
+            SELECT
+              device.device_id AS device_id,
+              ur_ingest_session.ur_ingest_session_id AS ingest_session_id,
+              ur_ingest_session.ingest_started_at AS ingest_session_started_at,
+              ur_ingest_session.ingest_finished_at AS ingest_session_finished_at,
+              COALESCE(ur_ingest_session_task.ur_status, 'Ok') AS ur_status,
+              COALESCE(uniform_resource.nature, 'UNKNOWN') AS nature,
+              COUNT(ur_ingest_session_task.uniform_resource_id) AS total_file_count,
+              SUM(CASE WHEN uniform_resource.content IS NOT NULL THEN 1 ELSE 0 END) AS file_count_with_content,
+              SUM(CASE WHEN uniform_resource.frontmatter IS NOT NULL THEN 1 ELSE 0 END) AS file_count_with_frontmatter,
+              MIN(uniform_resource.size_bytes) AS min_file_size_bytes,
+              AVG(uniform_resource.size_bytes) AS average_file_size_bytes,
+              MAX(uniform_resource.size_bytes) AS max_file_size_bytes,
+              MIN(uniform_resource.last_modified_at) AS oldest_file_last_modified_datetime,
+              MAX(uniform_resource.last_modified_at) AS youngest_file_last_modified_datetime
+          FROM
+              ur_ingest_session
+          JOIN
+              device ON ur_ingest_session.device_id = device.device_id
+          LEFT JOIN
+              ur_ingest_session_task ON ur_ingest_session.ur_ingest_session_id = ur_ingest_session_task.ingest_session_id
+          LEFT JOIN
+              uniform_resource ON ur_ingest_session_task.uniform_resource_id = uniform_resource.uniform_resource_id
+          GROUP BY
+              device.device_id,
+              ur_ingest_session.ur_ingest_session_id,
+              ur_ingest_session.ingest_started_at,
+              ur_ingest_session.ingest_finished_at,
+              ur_ingest_session_task.captured_executable
+      )
+      SELECT
+          device_id,
+          ingest_session_id,
+          ingest_session_started_at,
+          ingest_session_finished_at,
+          ur_status,
+          nature,
+          total_file_count,
+          file_count_with_content,
+          file_count_with_frontmatter,
+          min_file_size_bytes,
+          CAST(ROUND(average_file_size_bytes) AS INTEGER) AS average_file_size_bytes,
+          max_file_size_bytes,
+          oldest_file_last_modified_datetime,
+          youngest_file_last_modified_datetime
+      FROM
+          Summary
+      ORDER BY
+          device_id,
+          ingest_session_finished_at,
+          ur_status;`;
+  }
+
+  urIngestSessionTasksStatsLatestViewDDL() {
+    // deno-fmt-ignore
+    return this.viewDefn("ur_ingest_session_tasks_stats_latest")/* sql */`
+        SELECT iss.*
+          FROM ur_ingest_session_tasks_stats AS iss
+          JOIN (  SELECT ur_ingest_session.ur_ingest_session_id AS latest_session_id
+                    FROM ur_ingest_session
+                ORDER BY ur_ingest_session.ingest_finished_at DESC
+                   LIMIT 1) AS latest
+            ON iss.ingest_session_id = latest.latest_session_id;`;
+  }
+
+  urIngestSessionFileIssueViewDDL() {
+    // deno-fmt-ignore
+    return this.viewDefn("ur_ingest_session_file_issue")/* sql */`
+        SELECT us.device_id,
+               us.ur_ingest_session_id,
+               usp.ur_ingest_session_fs_path_id,
+               usp.root_path,
+               ufs.ur_ingest_session_fs_path_entry_id,
+               ufs.file_path_abs,
+               ufs.ur_status,
+               ufs.ur_diagnostics
+          FROM ur_ingest_session_fs_path_entry ufs
+          JOIN ur_ingest_session_fs_path usp ON ufs.ingest_fs_path_id = usp.ur_ingest_session_fs_path_id
+          JOIN ur_ingest_session us ON usp.ingest_session_id = us.ur_ingest_session_id
+         WHERE ufs.ur_status IS NOT NULL
+      GROUP BY us.device_id,
+               us.ur_ingest_session_id,
+               usp.ur_ingest_session_fs_path_id,
+               usp.root_path,
+               ufs.ur_ingest_session_fs_path_entry_id,
+               ufs.file_path_abs,
+               ufs.ur_status,
+               ufs.ur_diagnostics;`
   }
 
   @spn.navigationPrimeTopLevel({
@@ -120,6 +309,142 @@ export class UniformResourceSqlPages extends spn.TypicalSqlPageNotebook {
       OFFSET $offset;
 
       ${pagination.renderSimpleMarkdown()}
+    `;
+  }
+
+  @urNav({
+    caption: "Uniform Resources (IMAP)",
+    description: "Files ingested into the `uniform_resource` table",
+    siblingOrder: 1,
+  })
+  @spn.shell({})
+  "ur/uniform-resource-imap-account.sql"() {
+    const viewName = `uniform_resource_imap`;
+    return this.SQL`
+      ${this.activePageTitle()}
+
+      select
+          'title'   as component,
+          'Mailbox' as contents;
+      -- Display uniform_resource table with pagination
+      SELECT 'table' AS component,
+            'Uniform Resources' AS title,
+            "Size (bytes)" as align_right,
+            TRUE AS sort,
+            TRUE AS search,
+            TRUE AS hover,
+            TRUE AS striped_rows,
+            TRUE AS small,
+            'email' AS markdown;
+      SELECT
+        '[' || email || '](/ur/uniform-resource-imap-folder.sql?imap_account_id=' || ur_ingest_session_imap_account_id || ')' AS "email"
+          FROM ${viewName}
+          GROUP BY ur_ingest_session_imap_account_id
+          ORDER BY uniform_resource_id;
+
+    `;
+  }
+
+  @spn.shell({ breadcrumbsFromNavStmts: "no" })
+  "ur/uniform-resource-imap-folder.sql"() {
+    const viewName = `uniform_resource_imap`;
+    return this.SQL`
+      SELECT 'breadcrumb' as component;
+      SELECT
+          'Home' as title,
+          '/'    as link;
+      SELECT
+          'Uniform Resource' as title,
+          '/ur' as link;
+      SELECT
+          'Uniform Resources (IMAP)' as title,
+          '/ur/uniform-resource-imap-account.sql' as link;
+      SELECT
+          'Folder' as title,
+          '/ur/uniform-resource-imap-folder.sql?imap_account_id=' || $imap_account_id::TEXT as link;
+
+      SELECT
+          'title'   as component,
+          (SELECT email FROM ${viewName} WHERE ur_ingest_session_imap_account_id=$imap_account_id::TEXT) as contents;
+
+      -- Display uniform_resource table with pagination
+      SELECT 'table' AS component,
+            'Uniform Resources' AS title,
+            "Size (bytes)" as align_right,
+            TRUE AS sort,
+            TRUE AS search,
+            TRUE AS hover,
+            TRUE AS striped_rows,
+            TRUE AS small,
+            'folder' AS markdown;
+      SELECT '[' || folder_name || '](/ur/uniform-resource-imap-mail-list.sql?folder_id=' || ur_ingest_session_imap_acct_folder_id || ')' AS "folder"
+        FROM ${viewName}
+        WHERE ur_ingest_session_imap_account_id=$imap_account_id::TEXT
+        GROUP BY ur_ingest_session_imap_acct_folder_id
+        ORDER BY uniform_resource_id;
+    `;
+  }
+
+  @spn.shell({ breadcrumbsFromNavStmts: "no" })
+  "ur/uniform-resource-imap-mail-list.sql"() {
+    const viewName = `uniform_resource_imap`;
+    const pagination = this.pagination({ tableOrViewName: viewName });
+    return this.SQL`
+      SELECT
+      'breadcrumb' AS component;
+      SELECT
+          'Home' AS title,
+          '/'    AS link;
+      SELECT
+          'Uniform Resource' AS title,
+          '/ur' AS link;
+      SELECT
+          'Uniform Resources (IMAP)' AS title,
+          '/ur/uniform-resource-imap-account.sql' AS link;
+      SELECT
+       'Folder' AS title,
+       "uniform-resource-imap-folder.sql?imap_account_id="|| ur_ingest_session_imap_account_id AS link
+      FROM ${viewName}
+      WHERE ur_ingest_session_imap_acct_folder_id=$folder_id::TEXT GROUP BY ur_ingest_session_imap_acct_folder_id;
+
+      SELECT
+       folder_name AS title,
+       "uniform-resource-imap-mail-list.sql?folder_id="|| ur_ingest_session_imap_acct_folder_id AS link
+      FROM ${viewName}
+      WHERE ur_ingest_session_imap_acct_folder_id=$folder_id::TEXT GROUP BY ur_ingest_session_imap_acct_folder_id;
+
+       SELECT
+          'title'   as component,
+          (SELECT email || ' (' || folder_name || ')'  FROM ${viewName} WHERE ur_ingest_session_imap_acct_folder_id=$folder_id::TEXT) as contents;
+
+      -- sets up $limit, $offset, and other variables (use pagination.debugVars() to see values in web-ui)
+      ${pagination.init()}
+
+      -- Display uniform_resource table with pagination
+      SELECT 'table' AS component,
+            'Uniform Resources' AS title,
+            "Size (bytes)" as align_right,
+            TRUE AS sort,
+            TRUE AS search,
+            TRUE AS hover,
+            TRUE AS striped_rows,
+            TRUE AS small;
+      SELECT subject,"from",
+        CASE
+          WHEN ROUND(julianday('now') - julianday(date)) = 0 THEN 'Today'
+          WHEN ROUND(julianday('now') - julianday(date)) = 1 THEN '1 day ago'
+          WHEN ROUND(julianday('now') - julianday(date)) BETWEEN 2 AND 6 THEN CAST(ROUND(julianday('now') - julianday(date)) AS INT) || ' days ago'
+          WHEN ROUND(julianday('now') - julianday(date)) < 30 THEN CAST(ROUND(julianday('now') - julianday(date)) AS INT) || ' days ago'
+          WHEN ROUND(julianday('now') - julianday(date)) < 365 THEN CAST(ROUND((julianday('now') - julianday(date)) / 30) AS INT) || ' months ago'
+          ELSE CAST(ROUND((julianday('now') - julianday(date)) / 365) AS INT) || ' years ago'
+      END AS "Relative Time",
+      strftime('%Y-%m-%d', substr(date, 1, 19)) as date
+      FROM ${viewName}
+      WHERE ur_ingest_session_imap_acct_folder_id=$folder_id::TEXT
+      ORDER BY uniform_resource_id
+      LIMIT $limit
+      OFFSET $offset;
+      ${pagination.renderSimpleMarkdown("folder_id")}
     `;
   }
 }
