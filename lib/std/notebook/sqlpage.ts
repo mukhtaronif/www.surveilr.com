@@ -636,7 +636,7 @@ export class TypicalSqlPageNotebook
     );
 
     const sqlPageFileUpserts = await Promise.all(
-      cc.filter({ include: [/\.sql$/, /\.json$/, /\.js$/] })
+      cc.filter({ include: [/\.sql$/, /\.json$/, /\.js$/, /\.json$/] })
         .map(
           async (method) => {
             const notebook = method.source.instance;

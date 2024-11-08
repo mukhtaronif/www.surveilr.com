@@ -90,6 +90,9 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
       javascript: (key: string, scripts: string[]) => {
         const items = scripts.map((s) => `${literal(s)} AS ${key}`);
         items.push(
+          selectNavMenuItems("/drh/institutions/", "Institutions"),
+        );
+        items.push(
           selectNavMenuItems("/drh/study/", "Study"),
         );
         items.push(selectNavMenuItems("/ur", "Uniform Resource"));
@@ -154,6 +157,18 @@ export class DRHSqlPages extends spn.TypicalSqlPageNotebook {
     ${this.upsertNavSQL(...Array.from(this.navigation.values()))}
   `;
   }
+
+/*   setupDML() {
+    return this.SQL`            
+            CREATE TABLE uniform_resource_institution(
+              institution_id TEXT,
+              institution_name TEXT,
+              city TEXT,
+              state TEXT,
+              country TEXT    
+            );
+       `;  
+  }  */
 
   // //use this only for combined view sql generation
   // //based on the ingested dataset the function call must be handled
@@ -919,6 +934,66 @@ SELECT
   `;
   }
 
+
+  @drhNav({
+    caption: "Upload CGM Tracing File and Device Metadata",
+    abbreviatedCaption: "Upload CGM Tracing File and Device Metadata",
+    description: "Upload CGM Tracing File and Device Metadata",
+    siblingOrder: 5,
+  })
+  
+
+  @drhNav({
+    caption: "Institution Information",
+    abbreviatedCaption: "Institution Information",
+    description: "Institution Information",
+    siblingOrder: 5,
+  })
+  "drh/institutions/index.sql"() {
+    return this.SQL`
+     
+      SELECT 'form' AS component,
+          'Add Institution' AS title;
+      SELECT 
+        'institution_id' as name,
+        'Institution ID:' as label,
+        abs((random()) % 9000000000 + 1000000000 + 1) as value,
+        TRUE   as required;
+      SELECT 
+        'institution_name' as name,
+        'Institution Name:' as label,
+        TRUE   as required;
+      SELECT 
+        'city' as name,
+        'City:' as label,
+        TRUE   as required;
+      SELECT 
+        'state' as name,
+        'State:' as label,
+        TRUE   as required;
+      SELECT 
+        'country' as name,
+        'Country:' as label,
+        TRUE   as required;
+
+
+    INSERT INTO uniform_resource_institution (institution_id, institution_name, city, state, country) 
+    SELECT :institution_id, :institution_name, :city, :state, :country
+    WHERE :institution_name IS NOT NULL;
+
+    SELECT 'table' as component, 1 as search, 1 as sort, 1 as hover, 1 as striped_rows;
+    SELECT 
+      institution_id,
+      institution_name,
+      city,
+      state,
+      country
+    from uniform_resource_institution;
+
+      `;
+  }
+ 
+
   @spn.shell({ breadcrumbsFromNavStmts: "no", shellStmts: "do-not-include" })
   "drh/glucose-statistics-and-targets/index.sql"() {
     return this.SQL`
@@ -1025,6 +1100,11 @@ SELECT
       '<div class="card-content my-1">Defined as percent coefficient of variation (%CV); target ≤36%</div>' as html;                         
     
   `;
+  }
+
+  @spn.shell({ eliminate: true })
+  "sqlpage/sqlpage.json"() {
+    return Deno.readTextFileSync("./sqlpage/sqlpage.json");
   }
 
   @spn.shell({ eliminate: true })
