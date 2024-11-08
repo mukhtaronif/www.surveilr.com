@@ -186,7 +186,3 @@ You can now browse the Surveilr Web UI:
 - **http://localhost:9001/**: Main Surveilr Web UI
 
 
-```bash
-$ surveilr ingest files -r /home/siju/workspaces/github.com/surveilr/www.surveilr.com/lib/service/diabetes-research-hub/study-files/ && surveilr orchestrate transform-csv
-
-$ surveilr admin init && surveilr shell ./package.sql.ts
