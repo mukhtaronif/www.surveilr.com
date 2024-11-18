@@ -139,8 +139,9 @@ Deno.test("surveilr specific functions", async (t) => {
       "❌ Error: Failed to execute surveilr version function.",
     );
     const stdout = result.stdoutJson;
-    const value = stdout[0][Object.keys(stdout[0])[0]];
-    assertEquals(value, version);
+    const value = JSON.parse(stdout[0][Object.keys(stdout[0])[0]]);
+    const surveilr_version = value["surveilr"];
+    assertEquals(surveilr_version, version);
   });
 
   await t.step("mask", async () => {
@@ -359,7 +360,7 @@ Deno.test("sqlite_html", async (t) => {
     assertEquals(value, 3);
   });
 });
-
+// TODO: add a test case to check if it works with a re-direct
 Deno.test("sqlite_url", async (t) => {
   await t.step("http_get", async () => {
     const result =

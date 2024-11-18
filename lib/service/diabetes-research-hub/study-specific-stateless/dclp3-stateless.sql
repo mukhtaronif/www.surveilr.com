@@ -1,6 +1,5 @@
 -- DCLP3 study (single cgmtracing)
 
-
 -- Perform De-identification
 -- Anonymize email addresses in the uniform_resource_investigator table
 UPDATE uniform_resource_investigator
@@ -1228,16 +1227,15 @@ CREATE TEMP VIEW DataIntegrityEmptyCells AS
         
         UNION ALL
 
-            SELECT
-        'uniform_resource_participant' AS table_name,
-        'participant_id' AS column_name,
-        participant_id AS value,
-        rowid
+        SELECT
+            'uniform_resource_participant' AS table_name,
+            'participant_id' AS column_name,
+            participant_id AS value,
+            rowid
 	    FROM
 	        uniform_resource_participant
 	    WHERE
-	        participant_id IS NULL
-	        OR participant_id = ''
+	        participant_id IS NULL OR participant_id = ''
 	    UNION ALL
 	    SELECT
 	        'uniform_resource_participant' AS table_name,
@@ -1371,8 +1369,7 @@ CREATE TEMP VIEW DataIntegrityEmptyCells AS
 	        study_arm IS NULL
 	        OR study_arm = ''
 	
-	        UNION ALL
-	
+	    UNION ALL	
 	    SELECT 
 	            'uniform_resource_participant' AS table_name,
 	            'tenant_id' AS column_name,
@@ -1512,7 +1509,22 @@ WHERE orchestration_session_id = (SELECT orchestration_session_id FROM temp_sess
 -- Drop and recreate the device view
 DROP VIEW IF EXISTS drh_device;
 CREATE VIEW drh_device AS
-SELECT device_id, name, created_at
+SELECT (
+    select
+            party_id
+        from
+            party
+        limit
+            1
+    ) as tenant_id,
+    (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,
+    device_id, name, created_at
 FROM device d;
 
 -- Drop and recreate the number_of_files_converted view
@@ -1540,47 +1552,21 @@ WHERE type = 'table'
   AND name != 'uniform_resource';
 
 
--- Drop and recreate the orch_session_view view
-DROP VIEW IF EXISTS drh_orch_session_view;
-CREATE VIEW drh_orch_session_view AS
-SELECT
-    orchestration_session_id, device_id, orchestration_nature_id,
-    version, orch_started_at, orch_finished_at,
-    diagnostics_json, diagnostics_md
-FROM orchestration_session;
-
--- Drop and recreate the orch_session_deidentifyview view
-DROP VIEW IF EXISTS drh_orch_session_deidentifyview;
-CREATE VIEW drh_orch_session_deidentifyview AS
-SELECT
-    orchestration_session_id, device_id, orchestration_nature_id,
-    version, orch_started_at, orch_finished_at,
-    diagnostics_json, diagnostics_md
-FROM orchestration_session
-WHERE orchestration_nature_id = 'deidentification';
-
--- Drop and recreate the orchestration_session_entry_view view
-DROP VIEW IF EXISTS drh_orchestration_session_entry_view;
-CREATE VIEW drh_orchestration_session_entry_view AS
-SELECT
-    orchestration_session_entry_id, session_id, ingest_src, ingest_table_name
-FROM orchestration_session_entry;
-
--- Drop and recreate the orchestration_session_exec_view view
-DROP VIEW IF EXISTS drh_orchestration_session_exec_view;
-CREATE VIEW drh_orchestration_session_exec_view AS
-SELECT
-    orchestration_session_exec_id, exec_nature, session_id, session_entry_id,
-    parent_exec_id, namespace, exec_identity, exec_code, exec_status,
-    input_text, exec_error_text, output_text, output_nature, narrative_md
-FROM orchestration_session_exec;
 
 
 -- Drop and recreate the participant view
 DROP VIEW IF EXISTS drh_participant;
 CREATE VIEW drh_participant AS
 SELECT
-    participant_id, study_id, site_id, diagnosis_icd, med_rxnorm,
+    participant_id, 
+    (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,
+    site_id, diagnosis_icd, med_rxnorm,
     treatment_modality, gender, race_ethnicity, age, bmi, baseline_hba1c,
     diabetes_type, study_arm,(
         select
@@ -1614,7 +1600,13 @@ CREATE VIEW drh_cgmfilemetadata_view AS
 SELECT
     metadata_id, devicename, device_id, source_platform, patient_id,
     file_name, file_format, file_upload_date, data_start_date,
-    data_end_date, study_id,(
+    data_end_date, (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,(
         select
             party_id
         from
@@ -1628,7 +1620,13 @@ FROM uniform_resource_cgm_file_metadata;
 DROP VIEW IF EXISTS drh_author;
 CREATE VIEW drh_author AS
 SELECT
-    author_id, name, email, investigator_id, study_id,(
+    author_id, name, email, investigator_id, (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,(
         select
             party_id
         from
@@ -1656,7 +1654,13 @@ FROM uniform_resource_institution;
 DROP VIEW IF EXISTS drh_investigator;
 CREATE VIEW drh_investigator AS
 SELECT
-    investigator_id, investigator_name, email, institution_id, study_id,(
+    investigator_id, investigator_name, email, institution_id, (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,(
         select
             party_id
         from
@@ -1670,7 +1674,13 @@ FROM uniform_resource_investigator;
 DROP VIEW IF EXISTS drh_lab;
 CREATE VIEW drh_lab AS
 SELECT
-    lab_id, lab_name, lab_pi, institution_id, study_id,(
+    lab_id, lab_name, lab_pi, institution_id, (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,(
         select
             party_id
         from
@@ -1685,7 +1695,13 @@ DROP VIEW IF EXISTS drh_publication;
 CREATE VIEW drh_publication AS
 SELECT
     publication_id, publication_title, digital_object_identifier,
-    publication_site, study_id,(
+    publication_site, (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,(
         select
             party_id
         from
@@ -1699,7 +1715,13 @@ FROM uniform_resource_publication;
 DROP VIEW IF EXISTS drh_site;
 CREATE VIEW drh_site AS
 SELECT
-    study_id, site_id, site_name, site_type,(
+    (select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id, site_id, site_name, site_type,(
         select
             party_id
         from
@@ -1742,65 +1764,36 @@ FROM
 WHERE
     os.orchestration_nature_id = 'deidentification';
 
--- Create a view to display the files transformed
-DROP VIEW IF EXISTS drh_vw_ingest_session_entries_status;
-CREATE VIEW drh_vw_ingest_session_entries_status AS
-SELECT
-    isession.ur_ingest_session_id,
-    isession.device_id,
-    isession.behavior_id,
-    isession.behavior_json,
-    isession.ingest_started_at,
-    isession.ingest_finished_at,
-    isession.session_agent,    
-    isession.created_at AS session_created_at,
-    isession.created_by AS session_created_by,
-    isession.updated_at AS session_updated_at,
-    isession.updated_by AS session_updated_by,
-    isession.deleted_at AS session_deleted_at,
-    isession.deleted_by AS session_deleted_by,
-    isession.activity_log AS session_activity_log,
-    fspath.ur_ingest_session_fs_path_id,
-    fspath.ingest_session_id AS fspath_ingest_session_id,
-    fspath.root_path,    
-    fspath.created_at AS fspath_created_at,
-    fspath.created_by AS fspath_created_by,
-    fspath.updated_at AS fspath_updated_at,
-    fspath.updated_by AS fspath_updated_by,
-    fspath.deleted_at AS fspath_deleted_at,
-    fspath.deleted_by AS fspath_deleted_by,
-    fspath.activity_log AS fspath_activity_log,
-    entry.ur_ingest_session_fs_path_entry_id,
-    entry.ingest_session_id AS entry_ingest_session_id,
-    entry.ingest_fs_path_id,
-    entry.uniform_resource_id,
-    entry.file_path_abs,
-    entry.file_path_rel_parent,
-    entry.file_path_rel,
-    entry.file_basename,
-    entry.file_extn,
-    entry.captured_executable,
-    entry.ur_status,
-    entry.ur_diagnostics,
-    entry.ur_transformations,    
-    entry.created_at AS entry_created_at,
-    entry.created_by AS entry_created_by,
-    entry.updated_at AS entry_updated_at,
-    entry.updated_by AS entry_updated_by,
-    entry.deleted_at AS entry_deleted_at,
-    entry.deleted_by AS entry_deleted_by,
-    entry.activity_log AS entry_activity_log
-FROM
-    ur_ingest_session isession
-    JOIN ur_ingest_session_fs_path fspath ON isession.ur_ingest_session_id = fspath.ingest_session_id
-    JOIN ur_ingest_session_fs_path_entry entry ON fspath.ur_ingest_session_fs_path_id = entry.ingest_fs_path_id;
 
 
 DROP VIEW IF EXISTS drh_raw_cgm_table_lst;
-CREATE VIEW drh_raw_cgm_table_lst AS
-SELECT name, tbl_name as table_name
-FROM sqlite_master
-WHERE type = 'table' AND name LIKE 'uniform_resource_cgm_tracing%';
+CREATE VIEW
+    drh_raw_cgm_table_lst AS
+SELECT
+    (
+        SELECT
+            party_id
+        FROM
+            party
+        LIMIT
+            1
+    ) AS tenant_id,
+    (
+        SELECT
+            study_id
+        FROM
+            uniform_resource_study
+        LIMIT
+            1
+    ) AS study_id,
+    name,
+    tbl_name AS table_name,
+    files.file_name || '.' || files.file_format as raw_cgm_file_name
+FROM
+    sqlite_master
+    LEFT JOIN drh_study_files_table_info files ON lower(files.table_name) = lower(tbl_name)
+WHERE
+    type = 'table' and  name LIKE 'uniform_resource_cgm_tracing%';
 
 DROP VIEW IF EXISTS drh_number_cgm_count;
 CREATE VIEW drh_number_cgm_count AS
@@ -1810,21 +1803,7 @@ WHERE type = 'table' AND name LIKE 'uniform_resource_cgm_tracing%';
 
 DROP VIEW IF EXISTS study_wise_csv_file_names;
 CREATE VIEW study_wise_csv_file_names AS
-SELECT (
-        select
-            party_id
-        from
-            party
-        limit
-            1
-    ) as tenant_id,(
-        select
-            study_id
-        from
-            uniform_resource_study
-        limit
-            1
-    ) as study_id,name 
+SELECT name 
 FROM sqlite_master
 WHERE type = 'table' AND name LIKE 'uniform_resource_%' and name !='uniform_resource_transform';
 
@@ -1873,16 +1852,28 @@ GROUP BY s.study_id, s.study_name, s.study_description, s.start_date, s.end_date
 
 
 DROP VIEW IF EXISTS drh_study_files_table_info;
-CREATE VIEW IF NOT EXISTS drh_study_files_table_info AS
-       SELECT ur.uniform_resource_id,
-       ur.nature AS file_format,
-       SUBSTR(pe.file_path_rel, INSTR(pe.file_path_rel, '/') + 1, INSTR(pe.file_path_rel, '.') - INSTR(pe.file_path_rel, '/') - 1) as file_name,
-       'uniform_resource_' || SUBSTR(pe.file_path_rel, INSTR(pe.file_path_rel, '/') + 1, INSTR(pe.file_path_rel, '.') - INSTR(pe.file_path_rel, '/') - 1) AS table_name
-FROM uniform_resource ur
-LEFT JOIN ur_ingest_session_fs_path p ON ur.ingest_fs_path_id = p.ur_ingest_session_fs_path_id
-LEFT JOIN ur_ingest_session_fs_path_entry pe ON ur.uniform_resource_id = pe.uniform_resource_id
-WHERE ur.ingest_fs_path_id IS NOT NULL;
 
+CREATE VIEW
+    IF NOT EXISTS drh_study_files_table_info AS
+SELECT
+    ur.uniform_resource_id,
+    ur.nature AS file_format,
+    SUBSTR (
+        pe.file_path_rel,
+        INSTR (pe.file_path_rel, '/') + 1,
+        INSTR (pe.file_path_rel, '.') - INSTR (pe.file_path_rel, '/') - 1
+    ) as file_name,
+    'uniform_resource_' || SUBSTR (
+        pe.file_path_rel,
+        INSTR (pe.file_path_rel, '/') + 1,
+        INSTR (pe.file_path_rel, '.') - INSTR (pe.file_path_rel, '/') - 1
+    ) AS table_name
+FROM
+    uniform_resource ur
+    LEFT JOIN uniform_resource_edge ure ON ur.uniform_resource_id = ure.uniform_resource_id
+    AND ure.nature = 'ingest_fs_path'
+    LEFT JOIN ur_ingest_session_fs_path p ON ure.node_id = p.ur_ingest_session_fs_path_id
+    LEFT JOIN ur_ingest_session_fs_path_entry pe ON ur.uniform_resource_id = pe.uniform_resource_id;
 
 DROP VIEW IF EXISTS drh_vandv_orch_issues;
 CREATE VIEW drh_vandv_orch_issues AS
@@ -1906,21 +1897,6 @@ WHERE
 DROP VIEW IF EXISTS drh_device_file_count_view;
 CREATE VIEW drh_device_file_count_view AS
 SELECT 
-    (
-        select
-            party_id
-        from
-            party
-        limit
-            1
-    ) as tenant_id,(
-        select
-            study_id
-        from
-            uniform_resource_study
-        limit
-            1
-    ) as study_id,
     devicename, 
     COUNT(DISTINCT file_name) AS number_of_files
 FROM 
@@ -1962,8 +1938,7 @@ CREATE VIEW study_combined_dashboard_participant_metrics_view AS
 WITH combined_data AS (
     SELECT 
         dg.tenant_id,
-        --CAST(SUBSTR(dg.participant_id, 1, INSTR(dg.participant_id, '-') - 1) AS TEXT) AS study_id,     
-        dg.study_id,   
+        dg.study_id,        
         dg.participant_id,
         dg.gender,
         dg.age,
@@ -1984,7 +1959,7 @@ WITH combined_data AS (
         MAX(DATE(dc.Date_Time)) AS data_end_date
     FROM drh_participant dg 
     JOIN combined_cgm_tracing dc ON dg.participant_id = dc.participant_id
-    GROUP BY dg.study_id, dg.participant_id, dg.gender, dg.age, dg.study_arm, dg.baseline_hba1c,dg.tenant_id
+    GROUP BY dg.study_id, dg.participant_id, dg.tenant_id
 )
 SELECT *,
     ROUND(
@@ -2032,15 +2007,25 @@ SELECT count(*) as number_of_cgm_raw_files
 FROM sqlite_master
 WHERE type = 'table' AND name LIKE 'uniform_resource_cgm_tracing%';
 
-DROP VIEW IF EXISTS drh_raw_cgm_table_lst;
-CREATE VIEW drh_raw_cgm_table_lst AS
-SELECT name, tbl_name as table_name
-FROM sqlite_master
-WHERE type = 'table' AND name LIKE 'uniform_resource_cgm_tracing%';
 
 DROP VIEW IF EXISTS study_wise_csv_file_names;
 CREATE VIEW study_wise_csv_file_names AS
-SELECT name 
+SELECT (
+        select
+            party_id
+        from
+            party
+        limit
+            1
+    ) as tenant_id,
+    (
+        select
+            study_id
+        from
+            uniform_resource_study
+        limit
+            1
+    ) as study_id,name 
 FROM sqlite_master
 WHERE type = 'table' AND name LIKE 'uniform_resource_%' and name !='uniform_resource_transform';
 
@@ -2067,7 +2052,7 @@ FROM study_combined_dashboard_participant_metrics_view;
 DROP TABLE IF EXISTS combined_cgm_tracing_cached;
 
 CREATE TABLE combined_cgm_tracing_cached AS
-SELECT tenant_id, participant_id, Date_Time, CGM_Value
+SELECT *
 FROM combined_cgm_tracing;
 
 DROP TABLE IF EXISTS participant_cgm_date_range_cached;
@@ -2076,40 +2061,19 @@ CREATE TABLE participant_cgm_date_range_cached AS
 SELECT *
 FROM participant_cgm_date_range_view;
 
-DROP TABLE IF EXISTS ur_ingest_session_file_issue_cached;
-
-CREATE TABLE ur_ingest_session_file_issue_cached AS
-SELECT device_id, ur_ingest_session_id, ur_ingest_session_fs_path_id, root_path, ur_ingest_session_fs_path_entry_id, file_path_abs, ur_status, ur_diagnostics
-FROM ur_ingest_session_file_issue;
-
-DROP TABLE IF EXISTS ur_ingest_session_files_stats_cached;
-
-CREATE TABLE ur_ingest_session_files_stats_cached AS
-SELECT device_id, ingest_session_id, ingest_session_started_at, ingest_session_finished_at, file_extension, ingest_session_fs_path_id, ingest_session_root_fs_path, total_file_count, file_count_with_content, file_count_with_frontmatter, min_file_size_bytes, average_file_size_bytes, max_file_size_bytes, oldest_file_last_modified_datetime, youngest_file_last_modified_datetime
-FROM ur_ingest_session_files_stats;
-
-DROP TABLE IF EXISTS ur_ingest_session_files_stats_latest_cached;
-
-CREATE TABLE ur_ingest_session_files_stats_latest_cached AS
-SELECT device_id, ingest_session_id, ingest_session_started_at, ingest_session_finished_at, file_extension, ingest_session_fs_path_id, ingest_session_root_fs_path, total_file_count, file_count_with_content, file_count_with_frontmatter, min_file_size_bytes, average_file_size_bytes, max_file_size_bytes, oldest_file_last_modified_datetime, youngest_file_last_modified_datetime
-FROM ur_ingest_session_files_stats_latest;
-
-DROP TABLE IF EXISTS ur_ingest_session_tasks_stats_cached;
-
-CREATE TABLE ur_ingest_session_tasks_stats_cached AS
-SELECT device_id, ingest_session_id, ingest_session_started_at, ingest_session_finished_at, ur_status, nature, total_file_count, file_count_with_content, file_count_with_frontmatter, min_file_size_bytes, average_file_size_bytes, max_file_size_bytes, oldest_file_last_modified_datetime, youngest_file_last_modified_datetime
-FROM ur_ingest_session_tasks_stats;
-
-DROP TABLE IF EXISTS ur_ingest_session_tasks_stats_latest_cached;
-
-CREATE TABLE ur_ingest_session_tasks_stats_latest_cached AS
-SELECT device_id, ingest_session_id, ingest_session_started_at, ingest_session_finished_at, ur_status, nature, total_file_count, file_count_with_content, file_count_with_frontmatter, min_file_size_bytes, average_file_size_bytes, max_file_size_bytes, oldest_file_last_modified_datetime, youngest_file_last_modified_datetime
-FROM ur_ingest_session_tasks_stats_latest;
 
 DROP TABLE IF EXISTS study_details_cached;
 
 CREATE TABLE study_details_cached AS
-SELECT s.tenant_id,s.study_id,        
+SELECT (
+        select
+            party_id
+        from
+            party
+        limit
+            1
+    ) as tenant_id,
+    s.study_id,        
 s.study_name,        
 s.study_description,        
 s.start_date,        
@@ -2149,15 +2113,15 @@ JOIN
 
 
 
-DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_datetime;
-DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_sid;
-DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_sid_datetime;
+-- DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_datetime;
+-- DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_sid;
+-- DROP INDEX IF EXISTS idx_uniform_resource_cgm_tracing_sid_datetime;
 
-CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_datetime ON uniform_resource_cgm_tracing(Date_Time);
+-- CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_datetime ON uniform_resource_cgm_tracing(Date_Time);
 
-CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_sid ON uniform_resource_cgm_tracing(SID);
+-- CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_sid ON uniform_resource_cgm_tracing(SID);
 
-CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_sid_datetime ON uniform_resource_cgm_tracing(SID, Date_Time);
+-- CREATE INDEX IF NOT EXISTS idx_uniform_resource_cgm_tracing_sid_datetime ON uniform_resource_cgm_tracing(SID, Date_Time);
 
 
 
@@ -2222,5 +2186,7 @@ SELECT
         AS contents_md;
     '
 FROM raw_cgm_table_name;
+
+
 
 
