@@ -32,8 +32,11 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
     );
     shellConfig.javascript.push(
       "https://app.devl.drh.diabetestechnology.org/js/d3-aide.js",
-    );
+    );    
     shellConfig.javascript.push("/js/chart-component.js");
+    shellConfig.javascript_module.push(
+      "http://localhost:8080/js/wc/stacked-bar-chart.js",
+    );
     return shellConfig;
   }
 
@@ -50,8 +53,8 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
       typeof value === "number"
         ? value
         : value
-        ? this.emitCtx.sqlTextEmitOptions.quotedLiteral(value)[1]
-        : "NULL";
+          ? this.emitCtx.sqlTextEmitOptions.quotedLiteral(value)[1]
+          : "NULL";
     const selectNavMenuItems = (
       rootPath: string,
       caption: string,
@@ -116,6 +119,10 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
         );
         return items;
       },
+      javascript_module: (key: string, javascript_module: string[]) => {
+        const items = javascript_module.map((s) => `${literal(s)} AS ${key}`);
+        return items;
+      },
       footer: () =>
         // TODO: add "open in IDE" feature like in other Shahid apps
         literal(`Resource Surveillance Web UI (v`) +
@@ -132,12 +139,14 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
           );
         case "javascript":
           return handlers.javascript(k, v as string[]);
+        case "javascript_module":
+          return handlers.javascript_module(k, v as string[]); 
         case "footer":
           return handlers.footer();
         default:
           return handlers.DEFAULT(k, v);
       }
-    });
+    });    
     return this.SQL`
     SELECT ${sqlSelectExpr.join(",\n       ")};
   `;
@@ -158,17 +167,17 @@ export class DRHSqlPages extends spn.TypicalSqlPageNotebook {
   `;
   }
 
-/*   setupDML() {
-    return this.SQL`            
-            CREATE TABLE uniform_resource_institution(
-              institution_id TEXT,
-              institution_name TEXT,
-              city TEXT,
-              state TEXT,
-              country TEXT    
-            );
-       `;  
-  }  */
+  /*   setupDML() {
+      return this.SQL`            
+              CREATE TABLE uniform_resource_institution(
+                institution_id TEXT,
+                institution_name TEXT,
+                city TEXT,
+                state TEXT,
+                country TEXT    
+              );
+         `;  
+    }  */
 
   // //use this only for combined view sql generation
   // //based on the ingested dataset the function call must be handled
@@ -941,7 +950,7 @@ SELECT
     description: "Upload CGM Tracing File and Device Metadata",
     siblingOrder: 5,
   })
-  
+
 
   @drhNav({
     caption: "Institution Information",
@@ -992,7 +1001,7 @@ SELECT
 
       `;
   }
- 
+
 
   @spn.shell({ breadcrumbsFromNavStmts: "no", shellStmts: "do-not-include" })
   "drh/glucose-statistics-and-targets/index.sql"() {
@@ -1144,10 +1153,8 @@ SELECT
     '
     <input type="hidden" name="start_date" class="start_date" value="'|| $start_date ||'">
     <input type="hidden" name="end_date" class="end_date" value="'|| $end_date ||'">
-    <div class="chartContainer">
-      <svg id="tir-chart" class="m-0"></svg>
-    </div>
-    ' as html; 
+    <stacked-bar-chart></stacked-bar-chart>
+    ' as html;  
     `;
   }
 
@@ -1861,6 +1868,11 @@ Participants are individuals who volunteer to take part in CGM research studies.
 
       `;
   }
+
+  // @spn.shell({ eliminate: true })
+  /* async "js/wc/stacked-bar-chart.js"() {
+    return await Deno.readTextFileSync("http://localhost:8080/js/wc/stacked-bar-chart.js"); 
+  } */
 }
 
 export async function drhNotebooks() {
