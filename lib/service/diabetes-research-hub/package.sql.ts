@@ -35,7 +35,7 @@ export class DrhShellSqlPages extends sh.ShellSqlPages {
     );    
     shellConfig.javascript.push("/js/chart-component.js");
     shellConfig.javascript_module.push(
-      "http://localhost:8080/js/wc/stacked-bar-chart.js",
+      "https://app.devl.drh.diabetestechnology.org/js/wc/d3/stacked-bar-chart.js",  
     );
     return shellConfig;
   }
@@ -1153,7 +1153,7 @@ SELECT
     '
     <input type="hidden" name="start_date" class="start_date" value="'|| $start_date ||'">
     <input type="hidden" name="end_date" class="end_date" value="'|| $end_date ||'">
-    <stacked-bar-chart></stacked-bar-chart>
+    <stacked-bar-chart class="m-0"></stacked-bar-chart>
     ' as html;  
     `;
   }
